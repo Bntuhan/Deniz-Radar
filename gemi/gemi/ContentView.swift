@@ -8,7 +8,8 @@ struct ContentView: View {
         // Lokal test için: URL(string: "http://127.0.0.1:8501")!
         // WebView(url: URL(string: "http://127.0.0.1:8501")!)
         
-        let productionUrl = "https://deniz-radar.onrender.com" // KENDI DOMAININIZI YAZIN
+        let productionUrl = "https://deniz-radar.onrender.com"
+
         WebView(url: URL(string: productionUrl)!)
             .ignoresSafeArea()
     }
