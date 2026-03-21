@@ -12,12 +12,54 @@ export default function Chat() {
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
+    const loadConversations = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUser(user)
+
+      // Accepted invites
+      const { data: invites } = await supabase.from('invites').select('*').eq('status', 'accepted').or(`from_user.eq.${user.id},to_user.eq.${user.id}`)
+      
+      if (invites && invites.length > 0) {
+        const { data: ships } = await supabase.from('ships').select('user_id, captain')
+        const captainMap = {}
+        if (ships) {
+          ships.forEach(s => captainMap[s.user_id] = s.captain)
+        }
+
+        const convns = []
+        const seenRooms = new Set()
+        
+        invites.forEach(inv => {
+          if (!inv.room_id || seenRooms.has(inv.room_id)) return
+          seenRooms.add(inv.room_id)
+          
+          const partnerId = inv.from_user === user.id ? inv.to_user : inv.from_user
+          const partnerName = captainMap[partnerId] || 'Bilinmeyen Kaptan'
+          
+          convns.push({
+            room_id: inv.room_id,
+            partnerId,
+            partnerName
+          })
+        })
+        
+        setConversations(convns)
+      }
+    }
+
     loadConversations()
   }, [])
 
   useEffect(() => {
     if (activeRoom) {
+      const loadMessages = async (room_id) => {
+        const { data } = await supabase.from('messages').select('*').eq('room_id', room_id).order('created_at', { ascending: true })
+        if (data) setMessages(data)
+      }
+
       loadMessages(activeRoom)
+      
       // Realtime subscription
       const channel = supabase
         .channel(`room_${activeRoom}`)
@@ -35,47 +77,6 @@ export default function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  const loadConversations = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setUser(user)
-
-    // Accepted invites
-    const { data: invites } = await supabase.from('invites').select('*').eq('status', 'accepted').or(`from_user.eq.${user.id},to_user.eq.${user.id}`)
-    
-    if (invites && invites.length > 0) {
-      const { data: ships } = await supabase.from('ships').select('user_id, captain')
-      const captainMap = {}
-      if (ships) {
-        ships.forEach(s => captainMap[s.user_id] = s.captain)
-      }
-
-      const convns = []
-      const seenRooms = new Set()
-      
-      invites.forEach(inv => {
-        if (!inv.room_id || seenRooms.has(inv.room_id)) return
-        seenRooms.add(inv.room_id)
-        
-        const partnerId = inv.from_user === user.id ? inv.to_user : inv.from_user
-        const partnerName = captainMap[partnerId] || 'Bilinmeyen Kaptan'
-        
-        convns.push({
-          room_id: inv.room_id,
-          partnerId,
-          partnerName
-        })
-      })
-      
-      setConversations(convns)
-    }
-  }
-
-  const loadMessages = async (room_id) => {
-    const { data } = await supabase.from('messages').select('*').eq('room_id', room_id).order('created_at', { ascending: true })
-    if (data) setMessages(data)
-  }
 
   const sendMessage = async (e) => {
     e.preventDefault()
